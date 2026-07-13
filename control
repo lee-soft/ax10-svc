@@ -1,0 +1,8 @@
+Package: ax10-svc
+Version: 1.0-1
+Architecture: all
+Maintainer: Lee Chantrey <lchantrey@gmail.com>
+Section: base
+Priority: optional
+Depends:
+Description: Minimal service manager for the TP-Link Archer AX10. This box has no procd, so ax10-svc registers foreground daemons with busybox init's built-in inittab `respawn` (PID 1 supervision, ~instant restart). Other ax10-* daemon packages depend on it and call `ax10-svc add/del`. Installs /tmp/opt/ax10-svc.

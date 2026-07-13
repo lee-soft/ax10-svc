@@ -1,0 +1,51 @@
+#!/bin/sh
+# ax10-svc — supervise foreground daemons via busybox-init respawn (PID 1).
+# This box has no procd; busybox init's inittab `respawn` IS the service manager
+# (verified: kill -HUP 1 reloads inittab, dead respawn entries restart, parent=PID 1).
+#
+#   ax10-svc add <name> <foreground-command...>   register + start (init-supervised)
+#   ax10-svc del <name>                            unregister + stop
+#   ax10-svc list                                  list ax10-managed services
+#
+# Each service = a launcher script $SVCDIR/<name> (execs the command) referenced by
+# one `::respawn:` line in /etc/inittab. The COMMAND MUST STAY IN THE FOREGROUND
+# (e.g. `uhttpd -f`, `rpcd`, our dropbear which doesn't fork) or init respawn-loops.
+# GOTCHA baked in: the stock inittab's last line has NO trailing newline, so we
+# rebuild the file via grep (which normalizes it) instead of a raw `echo >>`.
+SVCDIR=/tmp/opt/ax10-svc.d
+INITTAB=/etc/inittab
+
+_without() { grep -vF "$SVCDIR/$1" "$INITTAB" 2>/dev/null; }   # inittab minus this svc's line
+_stop() {
+    for d in /proc/[0-9]*; do
+        c=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)
+        case "$c" in *"$SVCDIR/$1"*) kill "${d#/proc/}" 2>/dev/null ;; esac
+    done
+}
+
+name=$2
+case "$1" in
+    add)
+        shift 2
+        [ -n "$name" ] && [ -n "$1" ] || { echo "usage: ax10-svc add <name> <cmd...>" >&2; exit 1; }
+        mkdir -p "$SVCDIR"
+        printf '#!/bin/sh\nexec %s\n' "$*" > "$SVCDIR/$name"
+        chmod +x "$SVCDIR/$name"
+        { _without "$name"; echo "::respawn:/bin/sh $SVCDIR/$name"; } > "$INITTAB.new"
+        cat "$INITTAB.new" > "$INITTAB"; rm -f "$INITTAB.new"
+        kill -HUP 1 2>/dev/null
+        ;;
+    del)
+        [ -n "$name" ] || { echo "usage: ax10-svc del <name>" >&2; exit 1; }
+        _without "$name" > "$INITTAB.new"
+        cat "$INITTAB.new" > "$INITTAB"; rm -f "$INITTAB.new"
+        kill -HUP 1 2>/dev/null
+        _stop "$name"
+        rm -f "$SVCDIR/$name"
+        ;;
+    list)
+        grep -F "$SVCDIR/" "$INITTAB" 2>/dev/null | sed "s#.*$SVCDIR/##"
+        ;;
+    *)
+        echo "usage: ax10-svc {add <name> <cmd...>|del <name>|list}" >&2; exit 1 ;;
+esac
