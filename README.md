@@ -1,5 +1,7 @@
 # ax10-svc
 
+> ⚡ **Just want it working, not the source?** Prebuilt binaries + a one-command install are at **[archer-boot.pages.dev](https://archer-boot.pages.dev)**.
+
 Minimal **service manager** for the TP-Link Archer AX10. This box has no `procd`, so `ax10-svc`
 registers foreground daemons with **busybox-init's built-in `inittab` `respawn`** — PID-1
 supervision with near-instant restart. The other `ax10-*` daemon packages depend on it.
