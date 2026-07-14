@@ -17,9 +17,17 @@ INITTAB=/etc/inittab
 
 _without() { grep -vF "$SVCDIR/$1" "$INITTAB" 2>/dev/null; }   # inittab minus this svc's line
 _stop() {
+    # Kill the supervised process. The respawn line runs `/bin/sh $SVCDIR/<name>`,
+    # but that launcher `exec`s the real command — so once it's running the cmdline
+    # is the EXEC'd command (e.g. `/bin/sh .../ax10-wifi/wifiwatch`), NOT the svc.d
+    # launcher path. Match BOTH: the launcher path (pre-exec / transient) and the
+    # exec target read from the launcher file (still present when `del` calls us).
+    tgt=""
+    [ -f "$SVCDIR/$1" ] && tgt=$(sed -n 's/^exec //p' "$SVCDIR/$1")
     for d in /proc/[0-9]*; do
         c=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)
-        case "$c" in *"$SVCDIR/$1"*) kill "${d#/proc/}" 2>/dev/null ;; esac
+        case "$c" in *"$SVCDIR/$1"*) kill "${d#/proc/}" 2>/dev/null; continue ;; esac
+        [ -n "$tgt" ] && case "$c" in *"$tgt"*) kill "${d#/proc/}" 2>/dev/null ;; esac
     done
 }
 
